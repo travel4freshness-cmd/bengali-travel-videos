@@ -1,0 +1,52 @@
+name: Render 9:16 Bengali Male Voiceover Video
+
+on:
+  repository_dispatch:
+    types: [render-bengali-male-video]
+
+permissions:
+  contents: write
+
+jobs:
+  render-video:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install FFmpeg, Bengali fonts, and TTS libraries
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y ffmpeg fonts-noto-core fonts-noto-extra python3-pip
+          pip3 install --break-system-packages requests edge-tts gTTS
+
+      - name: Build 1080x1920 MP4 with Bengali male voiceover and Bengali CC
+        env:
+          ROW_NUMBER: ${{ github.event.client_payload.rowNumber }}
+          TTS_VOICE: ${{ github.event.client_payload.ttsVoice }}
+          TTS_RATE: ${{ github.event.client_payload.ttsRate }}
+          SCRIPT_TEXT: ${{ github.event.client_payload.script }}
+          VISUAL_CUES: ${{ github.event.client_payload.visualAndCaptionCues }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+        run: |
+          python3 scripts/build_bengali_male_video.py
+
+      - name: Upload MP4 to GitHub Release & update Column K via callbackUrl
+        env:
+          ROW_NUMBER: ${{ github.event.client_payload.rowNumber }}
+          CALLBACK_URL: ${{ github.event.client_payload.callbackUrl }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          FILE_NAME="row-${ROW_NUMBER}-${GITHUB_RUN_ID}.mp4"
+          cp out.mp4 "$FILE_NAME"
+
+          TAG_NAME="bengali-male-videos"
+          gh release create "$TAG_NAME" --repo "$REPO" --title "Bengali Male Voiceover Videos" --notes "Automated 9:16 Bengali male voiceover renders" 2>/dev/null || true
+          gh release upload "$TAG_NAME" "$FILE_NAME" --repo "$REPO" --clobber
+
+          VIDEO_URL="https://github.com/${REPO}/releases/download/${TAG_NAME}/${FILE_NAME}"
+
+          curl -sS -X POST "$CALLBACK_URL" \
+            -H "Content-Type: application/json" \
+            -d "{\"rowNumber\": ${ROW_NUMBER}, \"videoUrl\": \"${VIDEO_URL}\"}"
