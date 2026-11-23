@@ -3,6 +3,33 @@ name: Render 9:16 Bengali Male Voiceover Video
 on:
   repository_dispatch:
     types: [render-bengali-male-video]
+  workflow_dispatch:
+    inputs:
+      rowNumber:
+        description: 'Sheet Row Number'
+        required: false
+        default: '2'
+      ttsVoice:
+        description: 'Bengali Male Voice'
+        required: false
+        default: 'bn-BD-PradeepNeural'
+      ttsRate:
+        description: 'Speech Rate'
+        required: false
+        default: '-4%'
+      script:
+        description: '9:16 Bengali Script'
+        required: false
+        default: 'শহরের কোলাহল ছেড়ে একবার লেপচাজগতে এসেছেন? ভোরের কুয়াশা, উঁচু পাইন বনের নির্জনতা আর হাতে এক কাপ গরম দার্জিলিং চা—এখানে এলে সময় যেন থমকে যায়। দার্জিলিং থেকে মাত্র ১৯ কিলোমিটার দূরে এই শান্ত পাহাড়ি গ্রাম আপনার পরবর্তী উইকেন্ডের সেরা ঠিকানা। বিস্তারিত জানতে এখনই হোয়াটসঅ্যাপ করুন।'
+      visualAndCaptionCues:
+        description: 'Visual & Bengali CC Cues'
+        required: false
+        default: |
+          Scene 1 [0-5s]: misty pine forest mountain morning | Bengali CC: শহরের কোলাহল ছেড়ে লেপচাজগতে এসেছেন?
+          Scene 2 [5-11s]: fog drifting through tall pine trees | Bengali CC: ভোরের কুয়াশা আর উঁচু পাইন বনের নির্জনতা
+          Scene 3 [11-17s]: hot tea cup mountain view morning | Bengali CC: হাতে এক কাপ গরম দার্জিলিং চা
+          Scene 4 [17-24s]: peaceful himalayan village hills sunrise | Bengali CC: দার্জিলিং থেকে মাত্র ১৯ কিমি দূরে শান্ত গ্রাম
+          Scene 5 [24-30s]: cozy wooden homestay pine forest | Bengali CC: পরবর্তী ছুটি কাটান লেপচাজগতে—এখনই যোগাযোগ করুন
 
 permissions:
   contents: write
@@ -22,19 +49,19 @@ jobs:
 
       - name: Build 1080x1920 MP4 with Bengali male voiceover and Bengali CC
         env:
-          ROW_NUMBER: ${{ github.event.client_payload.rowNumber }}
-          TTS_VOICE: ${{ github.event.client_payload.ttsVoice }}
-          TTS_RATE: ${{ github.event.client_payload.ttsRate }}
-          SCRIPT_TEXT: ${{ github.event.client_payload.script }}
-          VISUAL_CUES: ${{ github.event.client_payload.visualAndCaptionCues }}
+          ROW_NUMBER: ${{ github.event.client_payload.rowNumber || inputs.rowNumber || '2' }}
+          TTS_VOICE: ${{ github.event.client_payload.ttsVoice || inputs.ttsVoice || 'bn-BD-PradeepNeural' }}
+          TTS_RATE: ${{ github.event.client_payload.ttsRate || inputs.ttsRate || '-4%' }}
+          SCRIPT_TEXT: ${{ github.event.client_payload.script || inputs.script }}
+          VISUAL_CUES: ${{ github.event.client_payload.visualAndCaptionCues || inputs.visualAndCaptionCues }}
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
         run: |
           python3 scripts/build_bengali_male_video.py
 
       - name: Upload MP4 to GitHub Release & update Column K via callbackUrl
         env:
-          ROW_NUMBER: ${{ github.event.client_payload.rowNumber }}
-          CALLBACK_URL: ${{ github.event.client_payload.callbackUrl }}
+          ROW_NUMBER: ${{ github.event.client_payload.rowNumber || inputs.rowNumber || '2' }}
+          CALLBACK_URL: ${{ github.event.client_payload.callbackUrl || '' }}
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
         run: |
@@ -46,7 +73,10 @@ jobs:
           gh release upload "$TAG_NAME" "$FILE_NAME" --repo "$REPO" --clobber
 
           VIDEO_URL="https://github.com/${REPO}/releases/download/${TAG_NAME}/${FILE_NAME}"
+          echo "FINAL_VIDEO_URL=${VIDEO_URL}"
 
-          curl -sS -X POST "$CALLBACK_URL" \
-            -H "Content-Type: application/json" \
-            -d "{\"rowNumber\": ${ROW_NUMBER}, \"videoUrl\": \"${VIDEO_URL}\"}"
+          if [ -n "$CALLBACK_URL" ]; then
+            curl -sS -X POST "$CALLBACK_URL" \
+              -H "Content-Type: application/json" \
+              -d "{\"rowNumber\": ${ROW_NUMBER}, \"videoUrl\": \"${VIDEO_URL}\"}"
+          fi
